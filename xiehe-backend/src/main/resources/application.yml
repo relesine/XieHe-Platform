@@ -1,0 +1,105 @@
+# ============================================================
+# 协合XieHe 后端配置文件
+# 注意:
+#   - 开发环境: 直接使用下方默认值即可跑通
+#   - 生产环境: 必须用环境变量覆盖敏感配置(见"上线前必改"清单):
+#       XIEHE_DB_PASSWORD  数据库密码
+#       XIEHE_JWT_SECRET   JWT签名密钥(至少32字节)
+#       XIEHE_UPLOAD_DIR   文件存储根目录(建议放到数据盘)
+#       XIEHE_MYBATIS_LOG  SQL日志开关(生产设为 org.apache.ibatis.logging.nologging.NoLoggingImpl)
+# ============================================================
+server:
+  port: 8080
+  # 优雅停机: 收到停止信号后等待在途请求处理完成再退出
+  shutdown: graceful
+  # 响应压缩: 减少 JSON/静态资源传输体积(小于2KB不压缩)
+  compression:
+    enabled: true
+    min-response-size: 2048
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+
+spring:
+  application:
+    name: xiehe-backend
+  lifecycle:
+    # 与 server.shutdown 配合,最长等待 20 秒
+    timeout-per-shutdown-phase: 20s
+  jackson:
+    time-zone: Asia/Shanghai
+  # ---------- MySQL/MariaDB 数据库连接 ----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/xiehe?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # 项目专用数据库账号(由 sql/init-db.ps1 自动创建),避免使用 root 高风险账号
+    username: xiehe
+    password: "${XIEHE_DB_PASSWORD:123456}"
+    # ---------- HikariCP 连接池参数(性能优化) ----------
+    hikari:
+      minimum-idle: 5 # 最小空闲连接数
+      maximum-pool-size: 20 # 最大连接数(并发上传/下载场景留足余量)
+      connection-timeout: 30000 # 获取连接超时(ms)
+      idle-timeout: 600000 # 空闲连接超时(ms)
+      max-lifetime: 1800000 # 连接最大存活时间(ms)
+      pool-name: XieHeHikariPool
+  # ---------- Redis 缓存连接 ----------
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 3000ms
+    # ---------- Lettuce 连接池参数(性能优化) ----------
+    lettuce:
+      pool:
+        max-active: 16 # 最大连接数
+        max-idle: 8 # 最大空闲连接
+        min-idle: 2 # 最小空闲连接
+        max-wait: 3000ms # 获取连接最大等待
+  # ---------- 文件上传大小限制 ----------
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+# ---------- MyBatis Plus 配置 ----------
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 数据库下划线字段 -> Java驼峰属性
+    # 默认关闭SQL控制台输出(生产安全);本地调试可设置环境变量开启:
+    # $env:XIEHE_MYBATIS_LOG="org.apache.ibatis.logging.stdout.StdOutImpl"
+    log-impl: ${XIEHE_MYBATIS_LOG:org.apache.ibatis.logging.nologging.NoLoggingImpl}
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto # 主键自增
+
+# ---------- 项目自定义配置 ----------
+xiehe:
+  jwt:
+    # JWT签名密钥(至少32字节),生产环境务必通过环境变量 XIEHE_JWT_SECRET 覆盖
+    secret: ${XIEHE_JWT_SECRET:XieHeSecretKey2026ForJwtTokenSigning1234567890}
+    expire-hours: 72 # 登录令牌有效期(小时)
+  # 文件存储根目录(生产环境建议通过环境变量 XIEHE_UPLOAD_DIR 指向数据盘)
+  upload-dir: ${XIEHE_UPLOAD_DIR:F:/AI_full-stack_project/XieHe/data/uploads}
+  # 允许跨域访问的前端来源(逗号分隔),部署时改为正式域名
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+  # 前端访问地址(分享链接等场景使用,部署时改为正式域名)
+  frontend-url: ${XIEHE_FRONTEND_URL:http://localhost:5173}
+
+# ---------- 生产运维端点: 仅暴露健康检查与版本信息 ----------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: 协合XieHe 协作文档云协作平台
+    version: 1.4.0
